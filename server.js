@@ -14,61 +14,65 @@ async function fetchCoursesForQuery(query) {
     console.log(`Attempting to fetch courses for query: "${query}"`);
     const options = {
       method: 'GET',
-      url: 'https://udemy-paid-courses-for-free-api.p.rapidapi.com/rapidapi/courses/search',
-      params: { page: '1', page_size: '20', query },
+      url: 'https://udemy-api2.p.rapidapi.com/course/search/', // ✅ replace with your confirmed working endpoint
+      params: { search: query },
       headers: {
         'x-rapidapi-key': process.env.RAPIDAPI_KEY,
-        'x-rapidapi-host': 'udemy-paid-courses-for-free-api.p.rapidapi.com'
+        'x-rapidapi-host': 'paid-udemy-course-for-free.p.rapidapi.com' // ✅ match the host from RapidAPI
       }
     };
+
     const response = await axios.request(options);
-    const courses = response.data && response.data.results ? response.data.results : [];
+    const courses = response.data?.courses || response.data?.results || [];
+
     if (courses.length > 0) {
       console.log(`✅ Found ${courses.length} courses for "${query}"`);
       return courses;
     }
+
     console.log(`🟡 No courses found for "${query}"`);
     return [];
   } catch (error) {
     console.error(`🔴 Failed to fetch for query "${query}":`, error.message);
-    return []; // Return empty array on error to allow trying the next topic
+    return []; // Return empty array instead of throwing
   }
 }
 
 // --- Root Route for Testing ---
 app.get("/", (req, res) => {
-  res.send("🚀 Udemy Courses backend (Final Version) is running on Railway");
+  res.send("🚀 Udemy Courses backend is running on Railway");
 });
 
 // --- Main API Endpoint ---
 app.get('/api/courses', async (req, res) => {
   const userInterestsQuery = req.query.interests;
 
-  // --- Case 1: User has interests from the quiz ---
-  if (userInterestsQuery) {
+  // Case 1: User has interests
+  if (userInterestsQuery && userInterestsQuery.trim() !== "") {
     const firstInterest = userInterestsQuery.split(',')[0].trim();
     const recommendedCourses = await fetchCoursesForQuery(firstInterest);
+
     if (recommendedCourses.length > 0) {
       return res.json(recommendedCourses);
     }
-    // Fallback if their primary interest returns no results
-    console.log(`Fallback: No results for interest "${firstInterest}", trying default topics.`);
+
+    console.log(`Fallback: No results for "${firstInterest}", trying defaults.`);
   }
 
-  // --- Case 2: User has no interests OR their interest had no results (Default Logic) ---
+  // Case 2: No interests or no results → try defaults
   console.log("Entering default course recommendation logic...");
-  const defaultTopics = ['Python', 'React', 'JavaScript', 'Data Science', 'Project Management'];
+  const defaultTopics = ['Python', 'React', 'JavaScript', 'Data Science', 'AWS'];
+
   for (const topic of defaultTopics) {
     const defaultCourses = await fetchCoursesForQuery(topic);
     if (defaultCourses.length > 0) {
-      // As soon as we find courses, send them and stop.
       return res.json(defaultCourses);
     }
   }
 
-  // --- Final Fallback (Highly Unlikely) ---
-  console.log("🔴 Could not find courses for any default topics.");
-  res.status(404).json([]); // Send empty array if no courses are found for any topic
+  // Final fallback → return empty array (not 404)
+  console.log("🔴 No courses found for any topic.");
+  res.json([]); 
 });
 
 app.listen(PORT, () => {
